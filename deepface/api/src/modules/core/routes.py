@@ -128,7 +128,7 @@ def verify_embeddings():
 
     logger.debug(resp_obj)
 
-    return resp_obj
+    return {"success": resp_obj}
 
 
 @blueprint.route("/analyze", methods=["POST"])
