@@ -2,6 +2,14 @@ from flask import Blueprint, request
 from deepface import DeepFace
 from deepface.api.src.modules.core import service
 from deepface.commons.logger import Logger
+from deepface.modules.verification import (
+    find_cosine_distance,
+    find_distance,
+    l2_normalize,
+    find_euclidean_distance,
+    find_threshold,
+)
+import time
 
 logger = Logger()
 
@@ -69,6 +77,58 @@ def verify():
     logger.debug(verification)
 
     return verification
+
+
+@blueprint.route("/verify-embeddings", methods=["POST"])
+def verify_embeddings():
+    input_args = request.get_json()
+
+    if input_args is None:
+        return {"message": "empty input set passed"}
+
+    embedding1 = input_args.get("embedding1")
+    embedding2 = input_args.get("embedding2")
+
+    if embedding1 is None:
+        return {"message": "you must pass embedding1 input"}
+
+    if embedding2 is None:
+        return {"message": "you must pass embedding2 input"}
+
+    tic = time.time()
+
+    # --------------------------------
+
+    distance_metric = input_args.get("distance_metric", "cosine")
+
+    if distance_metric == "cosine":
+        distance = find_cosine_distance(embedding1, embedding2)
+    elif distance_metric == "euclidean":
+        distance = find_euclidean_distance(embedding1, embedding2)
+    elif distance_metric == "euclidean_l2":
+        distance = find_euclidean_distance(l2_normalize(embedding1), l2_normalize(embedding2))
+    else:
+        raise ValueError("Invalid distance_metric passed - ", distance_metric)
+
+    # -------------------------------
+
+    model_name = input_args.get("model_name", "VGG-Face")
+    threshold = find_threshold(model_name, distance_metric)
+
+    toc = time.time()
+
+    resp_obj = {
+        "verified": distance <= threshold,
+        "distance": distance,
+        "threshold": threshold,
+        "model": model_name,
+        "similarity_metric": input_args.get("distance_metric", "cosine"),
+        "time": round(toc - tic, 2),
+    }
+
+    logger.debug(resp_obj)
+
+    return resp_obj
 
 
 @blueprint.route("/analyze", methods=["POST"])
